@@ -60,26 +60,30 @@ def constrain(val, min_val, max_val):
     if val > max_val: return max_val
     return val
 	
-def controlAlt(Kp,Ki,Kd,K):
+def controlAlt(Kp,Ki,Kd,K,hov_pwm):
 	global Az_IMU, dt
 	global alt_des, altitude, integral_alt_prev, thro_pwm
+	global altitude_prev
+	global derivative_alt
 	# PI controller for altitude, setpoint in meters
 	error_limit = 0.3 #meters
-	i_limit = 0.75 #arbitrary units
-	PID_limit = 350.0 #+/- pwm 
-	
+	i_limit = 0.5 #arbitrary units
+
 	error = alt_des - altitude
 	error = constrain(error, -error_limit, error_limit)
 	integral = integral_alt_prev + error*dt
 	integral = constrain(integral, -i_limit, i_limit) #prevent windup
 	integral_alt_prev = integral
-	derivative = (Az_IMU - 1.0)*dt*10.0
-	PID = K*(Kp*error + Ki*integral - Kd*derivative)
-	PID = constrain(PID,-PID_limit, PID_limit)
+	B_der = 1.0
+	derivative_alt = (1 - B_der)*derivative_alt + B_der*(altitude - altitude_prev)*dt*1000.0
+	altitude_prev = altitude
+	PID = K*(Kp*error + Ki*integral - Kd*derivative_alt)
+	
+	#print"{:12.9f}".format(Kd*derivative)
 	
 	# Convert command to int between 1000 and 2000
-	thro_pwm = 1500.0 + PID
-	thro_pwm = constrain(thro_pwm, 1000.0, 2000.0)
+	thro_pwm = hov_pwm + PID
+	thro_pwm = constrain(thro_pwm, hov_pwm - 75.0, hov_pwm + 75.0)
 	thro_pwm = int(thro_pwm)
 	
 def controlVelocity(Kp,K):
@@ -114,12 +118,13 @@ def main():
 	global altitude, Vx, Vy
 	global alt_des, Vx_des, Vy_des, yaw_des
 	global thro_pwm, roll_pwm, pitch_pwm, yaw_pwm
-	global integral_alt_prev
+	global integral_alt_prev, altitude_prev
+	global derivative_alt
 	global dt
 	thro_pwm = 1000
 	roll_pwm = pitch_pwm = yaw_pwm = 1500
 	alt_des = Vx_des = Vy_des = yaw_des = 0
-	integral_alt_prev = altitude = 0
+	integral_alt_prev = derivative_alt = altitude = altitude_prev = 0
 	Vx = Vy = 0
 	Az_IMU = 0
 	
@@ -150,8 +155,8 @@ def main():
 	while not rospy.is_shutdown():
 		try:		
 			# Do stuff 
-			controlAlt(Kp = 0.3, Ki = 0.1, Kd = 0.2, K = 1000.0)
-			controlVelocity(Kp = 0.8, K = 1000.0)
+			controlAlt(Kp = 0.005, Ki = 0.0005, Kd = 1.4, K = 1000.0, hov_pwm = 1480.0)
+			controlVelocity(Kp = 0.05, K = 1000.0)
 
 			# Publish to topics
 			pub_thro.publish(thro_pwm)

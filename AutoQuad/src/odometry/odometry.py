@@ -38,10 +38,16 @@ def accel_feedback(data):
 def x_vel_feedback(data):
 	global Vx_px4
 	Vx_px4 = data.data
-	
+	# threshhold px4 velocity measurements
+	if(quality_px4 < 30):
+		Vx_px4 = 0.0
+		
 def y_vel_feedback(data):
 	global Vy_px4
 	Vy_px4 = data.data
+	# threshhold px4 velocity measurements
+	if(quality_px4 < 30):
+		Vy_px4 = 0.0
 	
 def altitude_feedback(data):
 	global altitude_px4
@@ -93,35 +99,35 @@ def fuseData():
 	Ay = Ay_IMU - sin(roll)
 	Az = Az_IMU + abs(Ax_IMU*sin(roll)) + abs(Ay_IMU*sin(pitch)) - 1.0
 	
-	# integrate body accelerations for IMU velocity estimate
+	# integrate body accelerations - not used
 	Vx_IMU = Vx_IMU + Ax*dt*9.81
 	Vy_IMU = Vy_IMU + Ay*dt*9.81
 	
 	# LP filter px4 velocity measurements
-	B_px4 = 0.25
+	B_px4 = 0.01 #0.005
 	Vx_px4_LP = (1.0 - B_px4)*Vx_px4_LP_prev + B_px4*Vx_px4
 	Vy_px4_LP = (1.0 - B_px4)*Vy_px4_LP_prev + B_px4*Vy_px4
 	Vx_px4_LP_prev = Vx_px4_LP
 	Vy_px4_LP_prev = Vy_px4_LP
+	Vx_px4_LP = Vx_px4_LP*1.0
+	Vy_px4_LP = Vy_px4_LP*1.0
 	
 	# fuse IMU velocity estimate with px4 velocity estimate
-	B_comp = .5
-	Vx = (1.0 - B_comp)*(Vx_prev + Ax*dt*9.81) + B_comp*Vx_px4_LP
-	Vy = (1.0 - B_comp)*(Vy_prev + Ay*dt*9.81) - B_comp*Vy_px4_LP
-	Vx_prev = Vx
-	Vy_prev = Vy
+	B_comp = 0.9 #0.9
+	Vx = (1.0 - B_comp)*(Vx + Ax*dt*9.81) + B_comp*Vx_px4_LP
+	Vy = (1.0 - B_comp)*(Vy + Ay*dt*9.81) - B_comp*Vy_px4_LP
 	
-	# integrate fused velocity for position estimate 
-	Px = Px + Vx*dt
-	Py = Py + Vy*dt
+	# integrate velocity for position estimate - direct integration of px4 data
+	Px = Px + Vx_px4*dt
+	Py = Py + Vy_px4*dt
 
-	#print"{:8.4f}".format(Vx),
-	#print"{:8.4f}".format(Vy),
-	#print"{:8.4f}".format(Px),
-	#print"{:8.4f}".format(Py)
+	#print"{:12.9f}".format(Vx),
+	#print"{:12.9f}".format(Vy),
+	#print"{:12.9f}".format(Px),
+	#print"{:12.9f}".format(Py)
 	
 	# fuse IMU altitude estimate with px4 altitude estimate
-	B_comp = .5
+	B_comp = 0.05
 	Pz = (1.0 - B_comp)*(Pz_prev + Az*dt*dt*9.81) + B_comp*altitude_px4
 	Pz_prev = Pz
 	#print"{:8.4f}".format(altitude_px4),
@@ -145,6 +151,8 @@ def main():
 	global dt
 	Vx_IMU = Vy_IMU = Vx_prev = Vy_prev = Vx_px4_LP = Vx_px4_LP_prev = Vy_px4_LP = Vy_px4_LP_prev =  0.0
 	Px = Py = Pz = Pz_prev = 0
+	Vx = Vy = 0
+	quality_px4 = 0
 	
 	# Initialize node
 	rospy.init_node('odom', anonymous=True)
@@ -177,7 +185,7 @@ def main():
 			pub_Vy.publish(Vy)
 
 		except Exception:
-			#traceback.print_exc()
+			traceback.print_exc()
 			#rospy.loginfo('Some error ocurred in odometry.py')
 			indent = 1
 		

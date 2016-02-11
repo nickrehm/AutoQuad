@@ -20,11 +20,12 @@ px4flow = PX4FLOW()
 #############
 
 def printData():
+	global data, x_vel, y_vel, altitude, quality
 	print"{:5.2f}".format(x_vel),
 	print"{:5.2f}".format(y_vel),
 	print"{:5.2f}".format(altitude),
 	print"{:5.2f}".format(quality)
-	print('')
+	#print('')
 
 
 #############
@@ -33,11 +34,11 @@ def printData():
 
 def main():
 	# Declare variables 
-	global data, x_vel, y_xel, altitude, quality
+	global data, x_vel, y_vel, altitude, quality
 	
 	# Initialize node
 	rospy.init_node('px4', anonymous=True)
-	rate = rospy.Rate(500) # Hz
+	rate = rospy.Rate(700) # Hz
 	
 	# Initialize topics to publish
 	pub_px4_x_vel = rospy.Publisher('/px4_data/x_vel', Float64, queue_size=1)
@@ -66,7 +67,7 @@ def main():
 			pub_px4_quality.publish(quality)
 
 		except Exception:
-			#traceback.print_exc()
+			traceback.print_exc()
 			#rospy.loginfo('Some error ocurred in px4.py')
 			indent = 1
 		
