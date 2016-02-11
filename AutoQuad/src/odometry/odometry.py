@@ -50,9 +50,9 @@ def x_vel_feedback(data):
 		
 def y_vel_feedback(data):
 	global Vy_px4, dt, Py
-	Vy_px4 = data.data
+	Vy_px4 = -data.data
 	# integrate velocity for position estimate - mostly for visualization
-	Py = Py - Vy_px4*dt
+	Py = Py + Vy_px4*dt
 	
 def altitude_feedback(data):
 	global altitude_px4

@@ -72,8 +72,8 @@ def target_pose_feedback(data):
 	
 	matrix = quaternion_matrix([q1, q2, q3, q0])
 	v = numpy.dot(numpy.transpose([x, y, z, 0.0]),matrix)
-	target_x = -v[0]
-	target_y = v[1]
+	target_x = -v[1]
+	target_y = v[0]
 	target_z = -v[2]
 	
 	pitch, roll, yaw = quaternion_to_euler(q0, q1, q2, q3)
@@ -152,10 +152,10 @@ def controlVelocity_odom(Kp,Ki,K):
 	PIDy = K*Kp*error + constrain(K*Ki*integral_y, -i_limit, i_limit)
 	
 	# Convert command to int between 1000 and 2000
-	roll_pwm = 1500.0 - PIDx
+	roll_pwm = 1500.0 - PIDy
 	roll_pwm = constrain(roll_pwm, 1000.0, 2000.0)
 	roll_pwm = int(roll_pwm)
-	pitch_pwm = 1500.0 - PIDy
+	pitch_pwm = 1500.0 + PIDx
 	pitch_pwm = constrain(pitch_pwm, 1000.0, 2000.0)
 	pitch_pwm = int(pitch_pwm)
 	
@@ -192,12 +192,15 @@ def controlPos_target(Kp,Ki,Kd,K,x_offset,y_offset):
 	global dt
 	global target_x, target_y, Vx, Vy, roll_pwm, pitch_pwm, integral_tx, integral_ty
 	global roll_pwm, pitch_pwm
+	global ex_prev, ey_prev
 	# PID controller for position, setpoint x = 0.0m, y = 0.0m (plus offset)
 	error_limit = 0.3 #meters
 	i_limit = 50 #pwm
+	B = 0.1
 	
 	# x-direction
 	error = x_offset - target_x 
+	error = (1.0 - B)*ex_prev + B*error
 	error = constrain(error, -error_limit, error_limit)
 	integral_tx = integral_tx + error
 	if(Ki != 0.0):
@@ -206,9 +209,11 @@ def controlPos_target(Kp,Ki,Kd,K,x_offset,y_offset):
 		integral_tx = 0.0
 	derivative = Vx
 	PIDx = K*Kp*error + constrain(K*Ki*integral_tx, -i_limit, i_limit) - K*Kd*derivative
+	ex_prev = error
 	
 	# y-direction
 	error = y_offset - target_y 
+	error = (1.0 - B)*ey_prev + B*error
 	error = constrain(error, -error_limit, error_limit)
 	integral_ty = integral_ty + error
 	if(Ki != 0.0):
@@ -217,14 +222,16 @@ def controlPos_target(Kp,Ki,Kd,K,x_offset,y_offset):
 		integral_ty = 0.0
 	derivative = Vy
 	PIDy = K*Kp*error + constrain(K*Ki*integral_y, -i_limit, i_limit) - K*Kd*derivative
+	ey_prev = error
 	
 	# Convert command to int between 1000 and 2000
-	roll_pwm = 1500.0 + PIDy 
+	roll_pwm = 1500.0 - PIDy 
 	roll_pwm = constrain(roll_pwm, 1000.0, 2000.0)
 	roll_pwm = int(roll_pwm)
-	pitch_pwm = 1500.0 + PIDx 
+	pitch_pwm = 1500.0 + PIDx
 	pitch_pwm = constrain(pitch_pwm, 1000.0, 2000.0)
 	pitch_pwm = int(pitch_pwm)
+
 	
 def controlYaw(Kp,Ki,K):
 	global dt
@@ -248,6 +255,22 @@ def controlYaw(Kp,Ki,K):
 	yaw_pwm = constrain(yaw_pwm, 1000.0, 2000.0)
 	yaw_pwm = int(yaw_pwm)
 	
+def request_target_velocity(Kp,B):
+	global Vx_des, Vy_des
+	global target_x, target_y
+	global Vx_des_prev, Vy_des_prev
+	v_limit = 0.07
+	
+	Vx_des = -Kp*target_x
+	Vy_des = -Kp*target_y #check sign
+	Vx_des = constrain(Vx_des,-v_limit, v_limit)
+	Vy_des = constrain(Vy_des,-v_limit, v_limit)
+	
+	Vx_des = (1.0 - B)*Vx_des_prev + B*Vx_des
+	Vy_des = (1.0 - B)*Vy_des_prev + B*Vy_des
+	Vx_des_prev = Vx_des
+	Vy_des_prev = Vy_des
+	
 
 #############
 # MAIN LOOP #
@@ -267,6 +290,8 @@ def main():
 	global dt
 	global target_orientation, target_x, target_y, target_z, target_detected 
 	global integral_yaw
+	global ex_prev, ey_prev
+	global Vx_des_prev, Vy_des_prev
 	thro_pwm = 1000
 	roll_pwm = pitch_pwm = yaw_pwm = 1500
 	alt_des = Vx_des = Vy_des = yaw_des = 0.0
@@ -276,9 +301,11 @@ def main():
 	integral_tx = integral_ty = 0.0
 	integral_yaw = 0.0
 	Az_IMU = 0.0
+	ex_prev = ey_prev = 0.0
+	Vx_des_prev = Vy_des_prev = 0.0
 	radio_command = 1
 	target_detected = 0
-	alt_des = 0.0
+	alt_des = 1.0
 	
 	# Initialize node
 	rospy.init_node('control', anonymous=True)
@@ -309,17 +336,39 @@ def main():
 	while not rospy.is_shutdown():
 		try:		
 			# Do stuff 
-			alt_des = 1.5
+			
 			
 			if(target_detected == 1):
+				alt_des = alt_des - dt*.08 #descend
+				alt_des = constrain(alt_des, 0.0, 1.5)
+				if (alt_des < 0.3):
+					alt_des = 0.0
+					Vx_des = 0.0
+					Vy_des = 0.0
+					
 				#controlAlt_target(Kp = 0.12, Ki = 0.015, Kd = 2.0, K = 1000.0, hov_pwm = 1400.0)
+				#controlPos_target(Kp = 0.15, Ki = 0.005, Kd = 0.12, K = 1000.0, x_offset = 0.0 , y_offset = 0.0)
 				controlAlt_odom(Kp = 0.15, Ki = .1, Kd = 3.5, K = 1000.0, hov_pwm = 1450.0)
-				controlPos_target(Kp = 0.4, Ki = 0.000, Kd = 0.0, K = 1000.0, x_offset = 0.0 , y_offset = 0.0)
+				request_target_velocity(Kp = 0.07, B = 0.4)
+				controlVelocity_odom(Kp = 0.15, Ki = 0.0033, K = 1000.0)
 				controlYaw(Kp = 0.15, Ki = 0.0003, K = 10.0)
 			else:
+				if (alt_des < 0.4):
+					alt_des = 0.0
+					Vx_des = 0.0
+					Vy_des = 0.0
+				else:
+					alt_des = alt_des + dt*.08 #ascend
+					alt_des = constrain(alt_des, 0.0, 1.5)
+					Vx_des = 0.1
+					Vy_des = 0.0
+				
+				yaw_pwm = 1500
 				controlAlt_odom(Kp = 0.15, Ki = .1, Kd = 3.5, K = 1000.0, hov_pwm = 1450.0) 
 				controlVelocity_odom(Kp = 0.15, Ki = 0.0033, K = 1000.0)
-				yaw_pwm = 1500
+			
+			#print"{:12.9f}".format(Vx_des),
+			#print"{:12.9f}".format(Vy_des)
 		
 			# Publish to topics
 			pub_thro.publish(thro_pwm)
