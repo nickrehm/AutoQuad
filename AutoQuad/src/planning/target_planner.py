@@ -65,7 +65,8 @@ def main():
 	global target_detected, target_detected_1
 	target_detected = target_detected_1 = 0
 	Px1 = Py1 = Pz1 = 0.0
-	q1_1 = q2_1 = q3_1 = q0_1 = 0.0
+	q1_1 = q2_1 = q3_1 = 0.0
+	q0_1 = 1.0
 	Px = Py = Pz = 0.0
 	q1 = q2 = q3 = q0 = 0.0
 	

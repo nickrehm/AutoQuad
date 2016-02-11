@@ -44,14 +44,14 @@ def twist_feedback(data):
 def x_vel_feedback(data):
 	global Vx_px4, dt, Px
 	Vx_px4 = data.data
-	# integrate velocity for position estimate
+	# integrate velocity for position estimate - mostly for visualization
 	Px = Px + Vx_px4*dt
 	
 		
 def y_vel_feedback(data):
 	global Vy_px4, dt, Py
 	Vy_px4 = data.data
-	# integrate velocity for position estimate 
+	# integrate velocity for position estimate - mostly for visualization
 	Py = Py - Vy_px4*dt
 	
 def altitude_feedback(data):
@@ -61,6 +61,10 @@ def altitude_feedback(data):
 def quality_feedback(data):
 	global quality_px4
 	quality_px4 = data.data
+	
+def tfmini_feedback(data):
+	global altitude_tfmini
+	altitude_tfmini = data.data
 	
 def publishPose():
 	p = PoseStamped()
@@ -108,7 +112,7 @@ def fuseData():
 	#~ Az = Az_IMU + abs(Ax_IMU*sin(roll)) + abs(Ay_IMU*sin(pitch)) - 1.0
 	
 	# LP filter px4 velocity measurements
-	B_px4 = 0.38 #0.03
+	B_px4 = 0.13 #0.03
 	Vx_px4_LP = (1.0 - B_px4)*Vx_px4_LP_prev + B_px4*Vx_px4
 	Vy_px4_LP = (1.0 - B_px4)*Vy_px4_LP_prev + B_px4*Vy_px4
 	Vx_px4_LP_prev = Vx_px4_LP
@@ -128,19 +132,19 @@ def fuseData():
 	#print"{:12.9f}".format(Px),
 	#print"{:12.9f}".format(Py)
 	
-	# reject bad sonar data
-	if(abs(altitude_px4 - Pz_prev_re)>0.2):
+	# reject bad altitude data
+	if(abs(altitude_tfmini - Pz_prev_re)>0.5):
 		Pz_rejected = Pz_prev_re
 		alt_counter = alt_counter + 1
 		if (alt_counter == 35): #if 35 consecutive readings agree, probably true
-			Pz_rejected = altitude_px4
+			Pz_rejected = altitude_tfmini
 			alt_counter = 0
 	else:
-		Pz_rejected = altitude_px4
+		Pz_rejected = altitude_tfmini
 		alt_counter = 0
 	
 	# filter rejected altitude estimate
-	B_comp = 0.3 #0.008
+	B_comp = 0.35 #0.008
 	Pz = (1.0 - B_comp)*Pz_prev + B_comp*Pz_rejected
 
 	Pz_prev = Pz
@@ -159,6 +163,7 @@ def main():
 	global Ax_IMU, Ay_IMU, Az_IMU, Vx_IMU, Vy_IMU
 	global Gx, Gy, Gz
 	global Vx_px4, Vy_px4, altitude_px4, quality_px4
+	global altitude_tfmini
 	global Vx_px4_LP, Vx_px4_LP_prev, Vy_px4_LP, Vy_px4_LP_prev
 	global Vx, Vx_prev, Vy, Vy_prev
 	global Px, Py, Pz, Pz_prev, altitude_px4_prev
@@ -168,6 +173,7 @@ def main():
 	Vx_IMU = Vy_IMU = Vx_prev = Vy_prev = Vx_px4_LP = Vx_px4_LP_prev = Vy_px4_LP = Vy_px4_LP_prev = Gx = Gy = Gz = 0.0
 	q1 = q2 = q3 = q0 = 0.0
 	altitude_px4 = Vy_px4 = Vx_px4 = 0.0
+	altitude_tfmini = 0.0
 	Px = Py = Pz = altitude_px4_prev = 0
 	Pz_prev = 0.3
 	Pz_prev_re = 0.3
@@ -177,8 +183,8 @@ def main():
 	
 	# Initialize node
 	rospy.init_node('odom', anonymous=True)
-	rate = rospy.Rate(50) # Hz
-	dt = 1.0/50.0
+	rate = rospy.Rate(100) # Hz
+	dt = 1.0/100.0
 	
 	# Initialize topics to publish
 	pub_pose = rospy.Publisher('/odom/pose', PoseStamped, queue_size=1)
@@ -195,6 +201,7 @@ def main():
 	rospy.Subscriber('/px4_data/y_vel', Float64, y_vel_feedback)
 	rospy.Subscriber('/px4_data/altitude', Float64, altitude_feedback)
 	rospy.Subscriber('/px4_data/quality', Int32, quality_feedback)
+	rospy.Subscriber('/tfmini/altitude', Float64, tfmini_feedback)
 	
 	
 	while not rospy.is_shutdown():

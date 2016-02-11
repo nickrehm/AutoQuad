@@ -1,6 +1,7 @@
 <launch>
 	<node pkg="AutoQuad" type="serialComm.py" name="serialComm" output="screen"/>
 	<node pkg="AutoQuad" type="px4.py" name="px4" output="screen"/>
+	<node pkg="AutoQuad" type="tfmini.py" name="tfmini" output="screen"/>
 	<node pkg="AutoQuad" type="odometry.py" name="odom" output="screen"/>
 	<node pkg="AutoQuad" type="control.py" name="control" output="screen"/>
 	<node pkg="AutoQuad" type="target_planner.py" name="target_planner" output="screen"/>
