@@ -360,7 +360,7 @@ def main():
 				else:
 					alt_des = alt_des + dt*.08 #ascend
 					alt_des = constrain(alt_des, 0.0, 1.5)
-					Vx_des = 0.1
+					Vx_des = 0.01
 					Vy_des = 0.0
 				
 				yaw_pwm = 1500
