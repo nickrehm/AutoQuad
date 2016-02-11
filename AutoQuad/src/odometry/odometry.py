@@ -91,7 +91,9 @@ def fuseData():
 	global Vx_px4, Vy_px4, altitude_px4, quality_px4
 	global Vx_px4_LP, Vx_px4_LP_prev, Vy_px4_LP, Vy_px4_LP_prev
 	global Vx, Vx_prev, Vy, Vy_prev
-	global Px, Py, Pz, Pz_prev
+	global Px, Py, Pz, Pz_prev, altitude_px4_prev
+	global Pz_prev_re
+	global alt_counter
 	global dt
 	
 	# use orientation to get linear body accelerations 
@@ -104,7 +106,7 @@ def fuseData():
 	Vy_IMU = Vy_IMU + Ay*dt*9.81
 	
 	# LP filter px4 velocity measurements
-	B_px4 = 0.03
+	B_px4 = 0.04 #0.03
 	Vx_px4_LP = (1.0 - B_px4)*Vx_px4_LP_prev + B_px4*Vx_px4
 	Vy_px4_LP = (1.0 - B_px4)*Vy_px4_LP_prev + B_px4*Vy_px4
 	Vx_px4_LP_prev = Vx_px4_LP
@@ -126,14 +128,26 @@ def fuseData():
 	#print"{:12.9f}".format(Px),
 	#print"{:12.9f}".format(Py)
 	
-	# fuse IMU altitude estimate with px4 altitude estimate
-	B_comp = 0.07
-	Pz = (1.0 - B_comp)*(Pz_prev + Az*dt*dt*9.81) + B_comp*altitude_px4
-	Pz_prev = Pz
-	#print"{:8.4f}".format(altitude_px4),
-	#print"{:8.4f}".format(Az*dt*dt*1000.0),
-	#print"{:8.4f}".format(Pz)
 	
+	# reject bad sonar data
+	if(abs(altitude_px4 - Pz_prev_re)>0.2):
+		Pz_rejected = Pz_prev_re
+		alt_counter = alt_counter + 1
+		if (alt_counter == 300): #if 500 consecutive readings agree, probably true
+			Pz_rejected = altitude_px4
+			alt_counter = 0
+	else:
+		Pz_rejected = altitude_px4
+		alt_counter = 0
+	
+	# filter rejected altitude estimate
+	B_comp = 0.04 #0.008
+	Pz = (1.0 - B_comp)*Pz_prev + B_comp*Pz_rejected
+
+	Pz_prev = Pz
+	Pz_prev_re = Pz_rejected
+	altitude_px4_prev = altitude_px4
+
 
 #############
 # MAIN LOOP #
@@ -147,12 +161,17 @@ def main():
 	global Vx_px4, Vy_px4, altitude_px4, quality_px4
 	global Vx_px4_LP, Vx_px4_LP_prev, Vy_px4_LP, Vy_px4_LP_prev
 	global Vx, Vx_prev, Vy, Vy_prev
-	global Px, Py, Pz, Pz_prev
+	global Px, Py, Pz, Pz_prev, altitude_px4_prev
+	global Pz_prev_re
+	global alt_counter
 	global dt
 	Vx_IMU = Vy_IMU = Vx_prev = Vy_prev = Vx_px4_LP = Vx_px4_LP_prev = Vy_px4_LP = Vy_px4_LP_prev =  0.0
-	Px = Py = Pz = Pz_prev = 0
+	Px = Py = Pz = altitude_px4_prev = 0
+	Pz_prev = 0.3
+	Pz_prev_re = 0.3
 	Vx = Vy = 0
 	quality_px4 = 0
+	alt_counter = 0
 	
 	# Initialize node
 	rospy.init_node('odom', anonymous=True)

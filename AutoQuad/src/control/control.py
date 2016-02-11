@@ -54,6 +54,10 @@ def accel_feedback(data):
 	Ay_IMU = data.accel.linear.y
 	Az_IMU = data.accel.linear.z
 	
+def RC_feedback(data):
+	global radio_command
+	radio_command = data.data
+	
 def constrain(val, min_val, max_val):
 
     if val < min_val: return min_val
@@ -73,36 +77,40 @@ def controlAlt(Kp,Ki,Kd,K,hov_pwm):
 	error = constrain(error, -error_limit, error_limit)
 	integral = integral_alt_prev + error*dt
 	integral = constrain(integral, -i_limit, i_limit) #prevent windup
+	if(radio_command == 1): #reset integral when entering alt hold 
+		integral = 0.0
 	integral_alt_prev = integral
-	B_der = 0.008
-	derivative_alt = (1 - B_der)*derivative_alt + B_der*(altitude - altitude_prev)*dt*1000.0
+	B_der = 0.04
+	dz = altitude - altitude_prev
+	derivative_alt = (1.0 - B_der)*derivative_alt + B_der*dz
 	altitude_prev = altitude
-	PID = K*(Kp*error + Ki*integral - Kd*derivative_alt)
-	
-	#print"{:12.9f}".format(Kd*derivative)
+	PID = K*(Kp*error**3 + Ki*integral - Kd*derivative_alt)
+	#print"{:12.4f}".format(K*Ki*integral)
 	
 	# Convert command to int between 1000 and 2000
 	thro_pwm = hov_pwm + PID
-	thro_pwm = constrain(thro_pwm, hov_pwm - 75.0, hov_pwm + 75.0)
+	thro_pwm = constrain(thro_pwm, hov_pwm - 125.0, hov_pwm + 125.0)
 	thro_pwm = int(thro_pwm)
 	
 def controlVelocity(Kp,Ki,K):
 	global Vx_des, Vy_des, Vx, Vy, roll_pwm, pitch_pwm, integral_x, integral_y
 	# P controller for velocity, setpoint in m/s
-	error_limit = 0.5 #m/s
-	i_limit = 0.1
+	error_limit = 0.8 #m/s
+	i_limit = 250 #pwm
 	
 	error = Vx_des - Vx
 	error = constrain(error, -error_limit, error_limit)
 	integral_x = integral_x + error
-	integral_x = constrain(integral_x, -i_limit, i_limit)
-	PIDx = K*(Kp*error + Ki*integral_x)
+	if(radio_command == 1): #reset integral when entering alt hold 
+		integral_x = 0.0
+	PIDx = K*Kp*error + constrain(K*Ki*integral_x, -i_limit, i_limit)
 	
 	error = Vy_des - Vy
 	error = constrain(error, -error_limit, error_limit)
 	integral_y = integral_y + error
-	integral_y = constrain(integral_y, -i_limit, i_limit)
-	PIDy = K*(Kp*error + Ki*integral_y)
+	if(radio_command == 1): #reset integral when entering alt hold 
+		integral_y = 0.0
+	PIDy = K*Kp*error + constrain(K*Ki*integral_y, -i_limit, i_limit)
 	
 	# Convert command to int between 1000 and 2000
 	roll_pwm = 1500.0 - PIDy
@@ -126,14 +134,18 @@ def main():
 	global integral_alt_prev, altitude_prev
 	global derivative_alt
 	global integral_x, integral_y
+	global radio_command
 	global dt
 	thro_pwm = 1000
 	roll_pwm = pitch_pwm = yaw_pwm = 1500
 	alt_des = Vx_des = Vy_des = yaw_des = 0
+	#Vx_des = 0.115 #weird drifting
+	#Vy_des = -0.08 #weird drifting
 	integral_alt_prev = derivative_alt = altitude = altitude_prev = 0
 	Vx = Vy = 0
 	integral_x = integral_y = 0
 	Az_IMU = 0
+	radio_command = 1
 	
 	alt_des = 1.0
 	
@@ -157,13 +169,14 @@ def main():
 	rospy.Subscriber('/control/Vy_des', Float64, Vy_des_feedback)
 	rospy.Subscriber('/control/yaw_des', Float64, yaw_des_feedback)
 	rospy.Subscriber('/IMU/accel', AccelStamped, accel_feedback)
+	rospy.Subscriber('/radio_command', Int32, RC_feedback)
 	
 	
 	while not rospy.is_shutdown():
 		try:		
 			# Do stuff 
-			controlAlt(Kp = 0.005, Ki = 0.007, Kd = 0.3, K = 1000.0, hov_pwm = 1480.0) 
-			controlVelocity(Kp = 0.16, Ki = 0.1, K = 1000.0)
+			controlAlt(Kp = 0.12, Ki = 0.016, Kd = 4.5, K = 1000.0, hov_pwm = 1480.0) #Kp = 0.005, Ki = 0.007
+			controlVelocity(Kp = 0.17, Ki = 0.003, K = 1000.0)
 
 			# Publish to topics
 			pub_thro.publish(thro_pwm)
