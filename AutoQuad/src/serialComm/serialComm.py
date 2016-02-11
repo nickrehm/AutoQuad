@@ -165,7 +165,7 @@ def publishPose():
 	p = PoseStamped()
 	p.header.frame_id = "map"
 	p.header.stamp = rospy.Time.now()
-	p.pose.position.x = 0.0 # remove later when odometry is implemented
+	p.pose.position.x = 0.0 
 	p.pose.position.y = 0.0
 	p.pose.position.z = 0.0
 	p.pose.orientation.x = q1
@@ -178,7 +178,7 @@ def publishTwist():
 	t = TwistStamped()
 	t.header.frame_id = "map"
 	t.header.stamp = rospy.Time.now()
-	t.twist.linear.x = 0.0 # remove later when odometry is implemented
+	t.twist.linear.x = 0.0 
 	t.twist.linear.y = 0.0
 	t.twist.linear.z = 0.0
 	t.twist.angular.x = GyroX
@@ -195,7 +195,21 @@ def publishAccel():
 	a.accel.linear.z = AccZ
 	return a
 
+def thro_pwm_feedback(data):
+	global auto_thro_pwm
+	auto_thro_pwm = data.data
 
+def roll_pwm_feedback(data):
+	global auto_roll_pwm
+	auto_roll_pwm = data.data
+
+def pitch_pwm_feedback(data):
+	global auto_pitch_pwm
+	auto_pitch_pwm = data.data
+	
+def yaw_pwm_feedback(data):
+	global auto_yaw_pwm
+	auto_yaw_pwm = data.data
 
 #############
 # MAIN LOOP #
@@ -222,7 +236,10 @@ def main():
 	pub_radio_command = rospy.Publisher('/radio_command', Int32, queue_size=1)
 	
 	# Subscribe to topics with reference to callback functions
-	
+	rospy.Subscriber('/control/thro_pwm', Int32, thro_pwm_feedback)
+	rospy.Subscriber('/control/roll_pwm', Int32, roll_pwm_feedback)
+	rospy.Subscriber('/control/pitch_pwm', Int32, pitch_pwm_feedback)
+	rospy.Subscriber('/control/yaw_pwm', Int32, yaw_pwm_feedback)
 	
 	while not rospy.is_shutdown():
 		try:		
@@ -242,6 +259,7 @@ def main():
 			a = publishAccel() #format data into accelstamped struct
 			pub_accel.publish(a)
 			pub_radio_command.publish(radio_command)
+
 
 		except Exception:
 			#traceback.print_exc()
