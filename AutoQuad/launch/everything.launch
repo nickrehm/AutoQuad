@@ -1,0 +1,5 @@
+<launch>
+	<node pkg="AutoQuad" type="serialComm.py" name="serialComm" output="screen"/>
+	<node pkg="AutoQuad" type="px4.py" name="px4" output="screen"/>
+	
+</launch>
