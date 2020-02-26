@@ -66,15 +66,15 @@ def controlAlt(Kp,Ki,Kd,K,hov_pwm):
 	global altitude_prev
 	global derivative_alt
 	# PI controller for altitude, setpoint in meters
-	error_limit = 0.3 #meters
-	i_limit = 0.5 #arbitrary units
+	error_limit = 0.5 #meters
+	i_limit = 5.0 #arbitrary units
 
 	error = alt_des - altitude
 	error = constrain(error, -error_limit, error_limit)
 	integral = integral_alt_prev + error*dt
 	integral = constrain(integral, -i_limit, i_limit) #prevent windup
 	integral_alt_prev = integral
-	B_der = 1.0
+	B_der = 0.008
 	derivative_alt = (1 - B_der)*derivative_alt + B_der*(altitude - altitude_prev)*dt*1000.0
 	altitude_prev = altitude
 	PID = K*(Kp*error + Ki*integral - Kd*derivative_alt)
@@ -86,18 +86,23 @@ def controlAlt(Kp,Ki,Kd,K,hov_pwm):
 	thro_pwm = constrain(thro_pwm, hov_pwm - 75.0, hov_pwm + 75.0)
 	thro_pwm = int(thro_pwm)
 	
-def controlVelocity(Kp,K):
-	global Vx_des, Vy_des, Vx, Vy, roll_pwm, pitch_pwm
+def controlVelocity(Kp,Ki,K):
+	global Vx_des, Vy_des, Vx, Vy, roll_pwm, pitch_pwm, integral_x, integral_y
 	# P controller for velocity, setpoint in m/s
 	error_limit = 0.5 #m/s
+	i_limit = 0.1
 	
 	error = Vx_des - Vx
 	error = constrain(error, -error_limit, error_limit)
-	PIDx = K*(Kp*error)
+	integral_x = integral_x + error
+	integral_x = constrain(integral_x, -i_limit, i_limit)
+	PIDx = K*(Kp*error + Ki*integral_x)
 	
 	error = Vy_des - Vy
 	error = constrain(error, -error_limit, error_limit)
-	PIDy = K*(Kp*error)
+	integral_y = integral_y + error
+	integral_y = constrain(integral_y, -i_limit, i_limit)
+	PIDy = K*(Kp*error + Ki*integral_y)
 	
 	# Convert command to int between 1000 and 2000
 	roll_pwm = 1500.0 - PIDy
@@ -120,12 +125,14 @@ def main():
 	global thro_pwm, roll_pwm, pitch_pwm, yaw_pwm
 	global integral_alt_prev, altitude_prev
 	global derivative_alt
+	global integral_x, integral_y
 	global dt
 	thro_pwm = 1000
 	roll_pwm = pitch_pwm = yaw_pwm = 1500
 	alt_des = Vx_des = Vy_des = yaw_des = 0
 	integral_alt_prev = derivative_alt = altitude = altitude_prev = 0
 	Vx = Vy = 0
+	integral_x = integral_y = 0
 	Az_IMU = 0
 	
 	alt_des = 1.0
@@ -155,8 +162,8 @@ def main():
 	while not rospy.is_shutdown():
 		try:		
 			# Do stuff 
-			controlAlt(Kp = 0.005, Ki = 0.0005, Kd = 1.4, K = 1000.0, hov_pwm = 1480.0)
-			controlVelocity(Kp = 0.05, K = 1000.0)
+			controlAlt(Kp = 0.005, Ki = 0.007, Kd = 0.3, K = 1000.0, hov_pwm = 1480.0) 
+			controlVelocity(Kp = 0.16, Ki = 0.1, K = 1000.0)
 
 			# Publish to topics
 			pub_thro.publish(thro_pwm)

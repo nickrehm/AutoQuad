@@ -104,7 +104,7 @@ def fuseData():
 	Vy_IMU = Vy_IMU + Ay*dt*9.81
 	
 	# LP filter px4 velocity measurements
-	B_px4 = 0.01 #0.005
+	B_px4 = 0.03
 	Vx_px4_LP = (1.0 - B_px4)*Vx_px4_LP_prev + B_px4*Vx_px4
 	Vy_px4_LP = (1.0 - B_px4)*Vy_px4_LP_prev + B_px4*Vy_px4
 	Vx_px4_LP_prev = Vx_px4_LP
@@ -113,13 +113,13 @@ def fuseData():
 	Vy_px4_LP = Vy_px4_LP*1.0
 	
 	# fuse IMU velocity estimate with px4 velocity estimate
-	B_comp = 0.9 #0.9
+	B_comp = 1.0 #0.9
 	Vx = (1.0 - B_comp)*(Vx + Ax*dt*9.81) + B_comp*Vx_px4_LP
 	Vy = (1.0 - B_comp)*(Vy + Ay*dt*9.81) - B_comp*Vy_px4_LP
 	
 	# integrate velocity for position estimate - direct integration of px4 data
 	Px = Px + Vx_px4*dt
-	Py = Py + Vy_px4*dt
+	Py = Py - Vy_px4*dt
 
 	#print"{:12.9f}".format(Vx),
 	#print"{:12.9f}".format(Vy),
@@ -127,7 +127,7 @@ def fuseData():
 	#print"{:12.9f}".format(Py)
 	
 	# fuse IMU altitude estimate with px4 altitude estimate
-	B_comp = 0.05
+	B_comp = 0.07
 	Pz = (1.0 - B_comp)*(Pz_prev + Az*dt*dt*9.81) + B_comp*altitude_px4
 	Pz_prev = Pz
 	#print"{:8.4f}".format(altitude_px4),
