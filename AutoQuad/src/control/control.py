@@ -5,6 +5,7 @@ from std_msgs.msg import String, Float64, Empty, Int32
 from geometry_msgs.msg import PoseStamped, TwistStamped, AccelStamped
 from nav_msgs.msg import Odometry
 from math import atan2, sin, cos, sqrt, asin, acos, atan
+import numpy
 import traceback
 import time
 
@@ -70,7 +71,7 @@ def controlAlt(Kp,Ki,Kd,K,hov_pwm):
 	global altitude_prev
 	global derivative_alt
 	# PI controller for altitude, setpoint in meters
-	error_limit = 0.5 #meters
+	error_limit = 0.3 #meters
 	i_limit = 5.0 #arbitrary units
 
 	error = alt_des - altitude
@@ -175,7 +176,7 @@ def main():
 	while not rospy.is_shutdown():
 		try:		
 			# Do stuff 
-			controlAlt(Kp = 0.12, Ki = 0.016, Kd = 4.5, K = 1000.0, hov_pwm = 1480.0) #Kp = 0.005, Ki = 0.007
+			controlAlt(Kp = 0.18, Ki = 0.02, Kd = 4.5, K = 1000.0, hov_pwm = 1470.0) #kp=.12 ki=0.016 kd=4.0 safe values
 			controlVelocity(Kp = 0.17, Ki = 0.003, K = 1000.0)
 
 			# Publish to topics

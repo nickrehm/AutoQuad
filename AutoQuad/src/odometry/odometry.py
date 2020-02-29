@@ -35,6 +35,12 @@ def accel_feedback(data):
 	Ay_IMU = data.accel.linear.y
 	Az_IMU = data.accel.linear.z
 	
+def twist_feedback(data):
+	global Gx, Gy, Gz
+	Gx = data.twist.angular.x
+	Gy = data.twist.angular.y
+	Gz = data.twist.angular.z
+
 def x_vel_feedback(data):
 	global Vx_px4
 	Vx_px4 = data.data
@@ -88,6 +94,7 @@ def fuseData():
 	global q0, q1, q2, q3
 	global roll, pitch, yaw
 	global Ax_IMU, Ay_IMU, Az_IMU, Vx_IMU, Vy_IMU
+	global Gx, Gy, Gz
 	global Vx_px4, Vy_px4, altitude_px4, quality_px4
 	global Vx_px4_LP, Vx_px4_LP_prev, Vy_px4_LP, Vy_px4_LP_prev
 	global Vx, Vx_prev, Vy, Vy_prev
@@ -106,7 +113,7 @@ def fuseData():
 	Vy_IMU = Vy_IMU + Ay*dt*9.81
 	
 	# LP filter px4 velocity measurements
-	B_px4 = 0.04 #0.03
+	B_px4 = 0.03 #0.03
 	Vx_px4_LP = (1.0 - B_px4)*Vx_px4_LP_prev + B_px4*Vx_px4
 	Vy_px4_LP = (1.0 - B_px4)*Vy_px4_LP_prev + B_px4*Vy_px4
 	Vx_px4_LP_prev = Vx_px4_LP
@@ -133,7 +140,7 @@ def fuseData():
 	if(abs(altitude_px4 - Pz_prev_re)>0.2):
 		Pz_rejected = Pz_prev_re
 		alt_counter = alt_counter + 1
-		if (alt_counter == 300): #if 500 consecutive readings agree, probably true
+		if (alt_counter == 300): #if 300 consecutive readings agree, probably true
 			Pz_rejected = altitude_px4
 			alt_counter = 0
 	else:
@@ -158,6 +165,7 @@ def main():
 	global q0, q1, q2, q3
 	global roll, pitch, yaw
 	global Ax_IMU, Ay_IMU, Az_IMU, Vx_IMU, Vy_IMU
+	global Gx, Gy, Gz
 	global Vx_px4, Vy_px4, altitude_px4, quality_px4
 	global Vx_px4_LP, Vx_px4_LP_prev, Vy_px4_LP, Vy_px4_LP_prev
 	global Vx, Vx_prev, Vy, Vy_prev
@@ -165,7 +173,7 @@ def main():
 	global Pz_prev_re
 	global alt_counter
 	global dt
-	Vx_IMU = Vy_IMU = Vx_prev = Vy_prev = Vx_px4_LP = Vx_px4_LP_prev = Vy_px4_LP = Vy_px4_LP_prev =  0.0
+	Vx_IMU = Vy_IMU = Vx_prev = Vy_prev = Vx_px4_LP = Vx_px4_LP_prev = Vy_px4_LP = Vy_px4_LP_prev = Gx = Gy = Gz = 0.0
 	Px = Py = Pz = altitude_px4_prev = 0
 	Pz_prev = 0.3
 	Pz_prev_re = 0.3
@@ -187,10 +195,13 @@ def main():
 	# Subscribe to topics with reference to callback functions
 	rospy.Subscriber('/IMU/pose', PoseStamped, pose_feedback)
 	rospy.Subscriber('/IMU/accel', AccelStamped, accel_feedback)
+	rospy.Subscriber('/IMU/twist', TwistStamped, twist_feedback)
+	rospy.Subscriber('/px4_data/quality', Int32, quality_feedback)
 	rospy.Subscriber('/px4_data/x_vel', Float64, x_vel_feedback)
 	rospy.Subscriber('/px4_data/y_vel', Float64, y_vel_feedback)
 	rospy.Subscriber('/px4_data/altitude', Float64, altitude_feedback)
 	rospy.Subscriber('/px4_data/quality', Int32, quality_feedback)
+	
 	
 	while not rospy.is_shutdown():
 		try:		
