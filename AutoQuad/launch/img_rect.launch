@@ -1,0 +1,4 @@
+<launch>
+	<node name="image_proc" pkg="image_proc" type="image_proc" ns="camera1/usb_cam_nose"/>
+	<node name="image_proc" pkg="image_proc" type="image_proc" ns="camera2/usb_cam_target"/>
+</launch>

@@ -189,22 +189,22 @@ class PX4FLOW:
                hibyte -= 256
             qual = (hibyte << 8) + sensor_data[self.__PX4FLOW_QUAL_REG]
 
-            hibyte = sensor_data[self.__PX4FLOW_GYRO_X_RATE + 1]
-            if (hibyte > 127):
-               hibyte -= 256
-            pitch_rate = (hibyte << 8) + sensor_data[self.__PX4FLOW_GYRO_X_RATE]
+			#~ hibyte = sensor_data[self.__PX4FLOW_GYRO_X_RATE + 1]
+			#~ if (hibyte > 127):
+			   #~ hibyte -= 256
+			#~ pitch_rate = (hibyte << 8) + sensor_data[self.__PX4FLOW_GYRO_X_RATE]
 
-            hibyte = sensor_data[self.__PX4FLOW_GYRO_Y_RATE + 1]
-            if (hibyte > 127):
-               hibyte -= 256
-            roll_rate = (hibyte << 8) + sensor_data[self.__PX4FLOW_GYRO_Y_RATE]
+			#~ hibyte = sensor_data[self.__PX4FLOW_GYRO_Y_RATE + 1]
+			#~ if (hibyte > 127):
+			   #~ hibyte -= 256
+			#~ roll_rate = (hibyte << 8) + sensor_data[self.__PX4FLOW_GYRO_Y_RATE]
 
-            hibyte = sensor_data[self.__PX4FLOW_GYRO_Z_RATE + 1]
-            if (hibyte > 127):
-               hibyte -= 256
-            yaw_rate = (hibyte << 8) + sensor_data[self.__PX4FLOW_GYRO_Z_RATE]
+			#~ hibyte = sensor_data[self.__PX4FLOW_GYRO_Z_RATE + 1]
+			#~ if (hibyte > 127):
+			   #~ hibyte -= 256
+			#~ yaw_rate = (hibyte << 8) + sensor_data[self.__PX4FLOW_GYRO_Z_RATE]
 
-            sonar_dt = (sensor_data[self.__PX4FLOW_SONAR_TIMESTAMP]) / 1000
+			#~ sonar_dt = (sensor_data[self.__PX4FLOW_SONAR_TIMESTAMP]) / 1000
 
             hibyte = sensor_data[self.__PX4FLOW_GROUND_DISTANCE + 1]
             if (hibyte > 127):

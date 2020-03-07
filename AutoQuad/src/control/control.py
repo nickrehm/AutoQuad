@@ -21,7 +21,7 @@ import time
 # Functions #
 #############
 
-def pose_feedback(data):
+def odom_pose_feedback(data):
 	global altitude
 	altitude = data.pose.position.z
 	
@@ -59,13 +59,40 @@ def RC_feedback(data):
 	global radio_command
 	radio_command = data.data
 	
+def target_pose_feedback(data):
+	global target_orientation, target_x, target_y, target_z
+	target_x = data.pose.position.x
+	target_y = data.pose.position.y
+	target_z = data.pose.position.z
+	q0 = data.pose.orientation.w
+	q1 = data.pose.orientation.x
+	q2 = data.pose.orientation.y
+	q3 = data.pose.orientation.z
+	n, n, target_orientation = quaternion_to_euler(q0, q1, q2, q3)
+	
+def target_detected_feedback(data):
+	global target_detected
+	target_detected = data.data
+	
 def constrain(val, min_val, max_val):
-
     if val < min_val: return min_val
     if val > max_val: return max_val
     return val
+    
+def quaternion_to_euler(w, x, y, z):
+	t0 = +2.0 * (w * x + y * z)
+	t1 = +1.0 - 2.0 * (x * x + y * y)
+	roll = atan2(t0, t1)
+	t2 = +2.0 * (w * y - z * x)
+	t2 = +1.0 if t2 > +1.0 else t2
+	t2 = -1.0 if t2 < -1.0 else t2
+	pitch = asin(t2)
+	t3 = +2.0 * (w * z + x * y)
+	t4 = +1.0 - 2.0 * (y * y + z * z)
+	yaw = atan2(t3, t4)
+	return [roll, pitch, yaw]
 	
-def controlAlt(Kp,Ki,Kd,K,hov_pwm):
+def controlAlt_odom(Kp,Ki,Kd,K,hov_pwm):
 	global Az_IMU, dt
 	global alt_des, altitude, integral_alt_prev, thro_pwm
 	global altitude_prev
@@ -93,7 +120,7 @@ def controlAlt(Kp,Ki,Kd,K,hov_pwm):
 	thro_pwm = constrain(thro_pwm, hov_pwm - 125.0, hov_pwm + 125.0)
 	thro_pwm = int(thro_pwm)
 	
-def controlVelocity(Kp,Ki,K):
+def controlVelocity_odom(Kp,Ki,K):
 	global Vx_des, Vy_des, Vx, Vy, roll_pwm, pitch_pwm, integral_x, integral_y
 	# P controller for velocity, setpoint in m/s
 	error_limit = 0.8 #m/s
@@ -121,6 +148,9 @@ def controlVelocity(Kp,Ki,K):
 	pitch_pwm = constrain(pitch_pwm, 1000.0, 2000.0)
 	pitch_pwm = int(pitch_pwm)
 	
+def control_target():
+	indent = 1
+	
 
 #############
 # MAIN LOOP #
@@ -137,16 +167,16 @@ def main():
 	global integral_x, integral_y
 	global radio_command
 	global dt
+	global target_orientation, target_x, target_y, target_z, target_detected 
 	thro_pwm = 1000
 	roll_pwm = pitch_pwm = yaw_pwm = 1500
 	alt_des = Vx_des = Vy_des = yaw_des = 0
-	#Vx_des = 0.115 #weird drifting
-	#Vy_des = -0.08 #weird drifting
 	integral_alt_prev = derivative_alt = altitude = altitude_prev = 0
 	Vx = Vy = 0
 	integral_x = integral_y = 0
 	Az_IMU = 0
 	radio_command = 1
+	target_detected = 0
 	
 	alt_des = 1.0
 	
@@ -162,7 +192,7 @@ def main():
 	pub_yaw = rospy.Publisher('/control/yaw_pwm', Int32, queue_size=1)
 	
 	# Subscribe to topics with reference to callback functions
-	rospy.Subscriber('/odom/pose', PoseStamped, pose_feedback)
+	rospy.Subscriber('/odom/pose', PoseStamped, odom_pose_feedback)
 	rospy.Subscriber('/odom/Vel_x', Float64, Vx_feedback)
 	rospy.Subscriber('/odom/Vel_y', Float64, Vy_feedback)
 	rospy.Subscriber('/control/alt_des', Float64, alt_des_feedback)
@@ -171,13 +201,21 @@ def main():
 	rospy.Subscriber('/control/yaw_des', Float64, yaw_des_feedback)
 	rospy.Subscriber('/IMU/accel', AccelStamped, accel_feedback)
 	rospy.Subscriber('/radio_command', Int32, RC_feedback)
+	rospy.Subscriber('/target/pose', PoseStamped, target_pose_feedback)
+	rospy.Subscriber('/target/target_detected', Int32, target_detected_feedback)
+	
 	
 	
 	while not rospy.is_shutdown():
 		try:		
 			# Do stuff 
-			controlAlt(Kp = 0.18, Ki = 0.02, Kd = 4.5, K = 1000.0, hov_pwm = 1470.0) #kp=.12 ki=0.016 kd=4.0 safe values
-			controlVelocity(Kp = 0.17, Ki = 0.003, K = 1000.0)
+			if(target_detected == 1):
+				control_target()
+				print("Target detected")
+			else:
+				controlAlt_odom(Kp = 0.18, Ki = 0.02, Kd = 4.5, K = 1000.0, hov_pwm = 1470.0) #kp=.12 ki=0.016 kd=4.0 safe values
+				controlVelocity_odom(Kp = 0.17, Ki = 0.003, K = 1000.0)
+				print("No target detected, hovering in place at 1m")
 
 			# Publish to topics
 			pub_thro.publish(thro_pwm)
@@ -188,7 +226,7 @@ def main():
 
 		except Exception:
 			traceback.print_exc()
-			#rospy.loginfo('Some error ocurred in odometry.py')
+			#rospy.loginfo('Some error ocurred in control.py')
 			indent = 1
 		
 		rate.sleep()

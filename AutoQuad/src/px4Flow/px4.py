@@ -38,7 +38,7 @@ def main():
 	
 	# Initialize node
 	rospy.init_node('px4', anonymous=True)
-	rate = rospy.Rate(700) # Hz
+	rate = rospy.Rate(100) # Hz
 	
 	# Initialize topics to publish
 	pub_px4_x_vel = rospy.Publisher('/px4_data/x_vel', Float64, queue_size=1)

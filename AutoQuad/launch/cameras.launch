@@ -31,6 +31,15 @@
   </node>
  </group>
 
+
+	<node name="image_proc" pkg="image_proc" type="image_proc" ns="camera1/usb_cam_nose">
+		<param name="queue_size" value="10" />
+		<param name="approximate_sync" value="true" />
+	</node>
+	<node name="image_proc" pkg="image_proc" type="image_proc" ns="camera2/usb_cam_target">
+		<param name="queue_size" value="10" />
+		<param name="approximate_sync" value="true" />
+	</node>
 </launch>
 
 

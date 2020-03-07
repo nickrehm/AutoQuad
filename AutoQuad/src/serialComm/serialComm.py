@@ -227,7 +227,7 @@ def main():
 	
 	# Initialize node
 	rospy.init_node('serialComm', anonymous=True)
-	rate = rospy.Rate(500) # Hz
+	rate = rospy.Rate(100) # Hz
 	
 	# Initialize topics to publish
 	pub_pose = rospy.Publisher('/IMU/pose', PoseStamped, queue_size=1)

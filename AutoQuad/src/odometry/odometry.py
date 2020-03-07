@@ -109,8 +109,8 @@ def fuseData():
 	Az = Az_IMU + abs(Ax_IMU*sin(roll)) + abs(Ay_IMU*sin(pitch)) - 1.0
 	
 	# integrate body accelerations - not used
-	Vx_IMU = Vx_IMU + Ax*dt*9.81
-	Vy_IMU = Vy_IMU + Ay*dt*9.81
+	# Vx_IMU = Vx_IMU + Ax*dt*9.81
+	# Vy_IMU = Vy_IMU + Ay*dt*9.81
 	
 	# LP filter px4 velocity measurements
 	B_px4 = 0.03 #0.03
@@ -123,8 +123,10 @@ def fuseData():
 	
 	# fuse IMU velocity estimate with px4 velocity estimate
 	B_comp = 1.0 #0.9
-	Vx = (1.0 - B_comp)*(Vx + Ax*dt*9.81) + B_comp*Vx_px4_LP
-	Vy = (1.0 - B_comp)*(Vy + Ay*dt*9.81) - B_comp*Vy_px4_LP
+	# Vx = (1.0 - B_comp)*(Vx + Ax*dt*9.81) + B_comp*Vx_px4_LP
+	# Vy = (1.0 - B_comp)*(Vy + Ay*dt*9.81) - B_comp*Vy_px4_LP
+	Vx = Vx_px4_LP
+	Vy = Vy_px4_LP
 	
 	# integrate velocity for position estimate - direct integration of px4 data
 	Px = Px + Vx_px4*dt
@@ -183,8 +185,8 @@ def main():
 	
 	# Initialize node
 	rospy.init_node('odom', anonymous=True)
-	rate = rospy.Rate(500) # Hz
-	dt = 1.0/500.0
+	rate = rospy.Rate(100) # Hz
+	dt = 1.0/100.0
 	
 	# Initialize topics to publish
 	pub_pose = rospy.Publisher('/odom/pose', PoseStamped, queue_size=1)
