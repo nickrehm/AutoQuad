@@ -42,18 +42,17 @@ def twist_feedback(data):
 	Gz = data.twist.angular.z
 
 def x_vel_feedback(data):
-	global Vx_px4
+	global Vx_px4, dt, Px
 	Vx_px4 = data.data
-	# threshhold px4 velocity measurements
-	if(quality_px4 < 30):
-		Vx_px4 = 0.0
+	# integrate velocity for position estimate
+	Px = Px + Vx_px4*dt
+	
 		
 def y_vel_feedback(data):
-	global Vy_px4
+	global Vy_px4, dt, Py
 	Vy_px4 = data.data
-	# threshhold px4 velocity measurements
-	if(quality_px4 < 30):
-		Vy_px4 = 0.0
+	# integrate velocity for position estimate 
+	Py = Py - Vy_px4*dt
 	
 def altitude_feedback(data):
 	global altitude_px4
@@ -104,16 +103,12 @@ def fuseData():
 	global dt
 	
 	# use orientation to get linear body accelerations 
-	Ax = Ax_IMU + sin(pitch)
-	Ay = Ay_IMU - sin(roll)
-	Az = Az_IMU + abs(Ax_IMU*sin(roll)) + abs(Ay_IMU*sin(pitch)) - 1.0
-	
-	# integrate body accelerations - not used
-	# Vx_IMU = Vx_IMU + Ax*dt*9.81
-	# Vy_IMU = Vy_IMU + Ay*dt*9.81
+	#~ Ax = Ax_IMU + sin(pitch)
+	#~ Ay = Ay_IMU - sin(roll)
+	#~ Az = Az_IMU + abs(Ax_IMU*sin(roll)) + abs(Ay_IMU*sin(pitch)) - 1.0
 	
 	# LP filter px4 velocity measurements
-	B_px4 = 0.03 #0.03
+	B_px4 = 0.38 #0.03
 	Vx_px4_LP = (1.0 - B_px4)*Vx_px4_LP_prev + B_px4*Vx_px4
 	Vy_px4_LP = (1.0 - B_px4)*Vy_px4_LP_prev + B_px4*Vy_px4
 	Vx_px4_LP_prev = Vx_px4_LP
@@ -122,27 +117,22 @@ def fuseData():
 	Vy_px4_LP = Vy_px4_LP*1.0
 	
 	# fuse IMU velocity estimate with px4 velocity estimate
-	B_comp = 1.0 #0.9
-	# Vx = (1.0 - B_comp)*(Vx + Ax*dt*9.81) + B_comp*Vx_px4_LP
-	# Vy = (1.0 - B_comp)*(Vy + Ay*dt*9.81) - B_comp*Vy_px4_LP
+	#~ B_comp = 1.0 #0.9
+	#~ Vx = (1.0 - B_comp)*(Vx + Ax*dt*9.81) + B_comp*Vx_px4_LP
+	#~ Vy = (1.0 - B_comp)*(Vy + Ay*dt*9.81) - B_comp*Vy_px4_LP
 	Vx = Vx_px4_LP
 	Vy = Vy_px4_LP
-	
-	# integrate velocity for position estimate - direct integration of px4 data
-	Px = Px + Vx_px4*dt
-	Py = Py - Vy_px4*dt
 
 	#print"{:12.9f}".format(Vx),
 	#print"{:12.9f}".format(Vy),
 	#print"{:12.9f}".format(Px),
 	#print"{:12.9f}".format(Py)
 	
-	
 	# reject bad sonar data
 	if(abs(altitude_px4 - Pz_prev_re)>0.2):
 		Pz_rejected = Pz_prev_re
 		alt_counter = alt_counter + 1
-		if (alt_counter == 300): #if 300 consecutive readings agree, probably true
+		if (alt_counter == 35): #if 35 consecutive readings agree, probably true
 			Pz_rejected = altitude_px4
 			alt_counter = 0
 	else:
@@ -150,7 +140,7 @@ def fuseData():
 		alt_counter = 0
 	
 	# filter rejected altitude estimate
-	B_comp = 0.04 #0.008
+	B_comp = 0.3 #0.008
 	Pz = (1.0 - B_comp)*Pz_prev + B_comp*Pz_rejected
 
 	Pz_prev = Pz
@@ -176,6 +166,8 @@ def main():
 	global alt_counter
 	global dt
 	Vx_IMU = Vy_IMU = Vx_prev = Vy_prev = Vx_px4_LP = Vx_px4_LP_prev = Vy_px4_LP = Vy_px4_LP_prev = Gx = Gy = Gz = 0.0
+	q1 = q2 = q3 = q0 = 0.0
+	altitude_px4 = Vy_px4 = Vx_px4 = 0.0
 	Px = Py = Pz = altitude_px4_prev = 0
 	Pz_prev = 0.3
 	Pz_prev_re = 0.3
@@ -185,8 +177,8 @@ def main():
 	
 	# Initialize node
 	rospy.init_node('odom', anonymous=True)
-	rate = rospy.Rate(100) # Hz
-	dt = 1.0/100.0
+	rate = rospy.Rate(50) # Hz
+	dt = 1.0/50.0
 	
 	# Initialize topics to publish
 	pub_pose = rospy.Publisher('/odom/pose', PoseStamped, queue_size=1)

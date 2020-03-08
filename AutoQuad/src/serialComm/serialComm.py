@@ -17,7 +17,7 @@ import time
 ser = serial.Serial(
 	port = '/dev/ttyAMA0',
 	baudrate = 3000000,
-	timeout=1)
+	timeout=0.02)
 
 
 #############
@@ -32,34 +32,34 @@ def receiveData():
 		q0 = float(ser.readline().strip())
 		if(ser.read()=='b'):
 			q1 = ser.readline()
-			q1 = float(ser.readline())
-		if(ser.read()=='c'):
-			q2 = ser.readline()
-			q2 = float(ser.readline())
-		if(ser.read()=='d'):
-			q3 = ser.readline()
-			q3 = float(ser.readline())
-		if(ser.read()=='e'):
-			GyroX = ser.readline()
-			GyroX = float(ser.readline())
-		if(ser.read()=='f'):
-			GyroY = ser.readline()
-			GyroY = float(ser.readline())
-		if(ser.read()=='g'):
-			GyroZ = ser.readline()
-			GyroZ = float(ser.readline())
-		if(ser.read()=='h'):
-			AccX = ser.readline()
-			AccX = float(ser.readline())
-		if(ser.read()=='i'):
-			AccY = ser.readline()
-			AccY = float(ser.readline())
-		if(ser.read()=='j'):
-			AccZ = ser.readline()
-			AccZ = float(ser.readline())
-		if(ser.read()=='k'):
-			radio_command = ser.readline()
-			radio_command = int(ser.readline())
+			q1 = float(ser.readline().strip())
+			if(ser.read()=='c'):
+				q2 = ser.readline()
+				q2 = float(ser.readline().strip())
+				if(ser.read()=='d'):
+					q3 = ser.readline()
+					q3 = float(ser.readline().strip())
+					if(ser.read()=='e'):
+						GyroX = ser.readline()
+						GyroX = float(ser.readline().strip())
+						if(ser.read()=='f'):
+							GyroY = ser.readline()
+							GyroY = float(ser.readline().strip())
+							if(ser.read()=='g'):
+								GyroZ = ser.readline()
+								GyroZ = float(ser.readline().strip())
+								if(ser.read()=='h'):
+									AccX = ser.readline()
+									AccX = float(ser.readline().strip())
+									if(ser.read()=='i'):
+										AccY = ser.readline()
+										AccY = float(ser.readline().strip())
+										if(ser.read()=='j'):
+											AccZ = ser.readline()
+											AccZ = float(ser.readline().strip())
+											if(ser.read()=='k'):
+												radio_command = ser.readline()
+												radio_command = int(ser.readline().strip())
 		
 def sendData():
 	ser.write('a')
@@ -227,7 +227,7 @@ def main():
 	
 	# Initialize node
 	rospy.init_node('serialComm', anonymous=True)
-	rate = rospy.Rate(100) # Hz
+	rate = rospy.Rate(50) # Hz
 	
 	# Initialize topics to publish
 	pub_pose = rospy.Publisher('/IMU/pose', PoseStamped, queue_size=1)

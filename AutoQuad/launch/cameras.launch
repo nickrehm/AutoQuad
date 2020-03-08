@@ -1,7 +1,8 @@
 <launch>
+<!--
 <group ns="camera1">
   <node name="usb_cam_nose" pkg="usb_cam" type="usb_cam_node" output="screen" >
-    <param name="video_device" value="/dev/video0" />
+    <param name="video_device" value="/dev/video2" />
     <param name="image_width" value="640" />
     <param name="image_height" value="480" />
     <param name="framerate" value="30"/>
@@ -9,15 +10,18 @@
     <param name="camera_frame_id" value="usb_cam1" />
     <param name="io_method" value="mmap"/>
   </node>
+
   <node name="image_view" pkg="image_view" type="image_view" respawn="false" output="screen">
     <remap from="image" to="/camera1/usb_cam1/image_raw"/>
     <param name="autosize" value="true" />
   </node>
+
  </group>
- 
+-->
+
   <group ns="camera2">
   <node name="usb_cam_target" pkg="usb_cam" type="usb_cam_node" output="screen" >
-    <param name="video_device" value="/dev/video2" />
+    <param name="video_device" value="/dev/video0" />
     <param name="image_width" value="640" />
     <param name="image_height" value="480" />
     <param name="framerate" value="30"/>
@@ -25,21 +29,26 @@
     <param name="camera_frame_id" value="usb_cam2" />
     <param name="io_method" value="mmap"/>
   </node>
+  <!--
   <node name="image_view" pkg="image_view" type="image_view" respawn="false" output="screen">
     <remap from="image" to="/camera2/usb_cam2/image_raw"/>
     <param name="autosize" value="true" />
   </node>
+  -->
  </group>
 
-
+<!--
 	<node name="image_proc" pkg="image_proc" type="image_proc" ns="camera1/usb_cam_nose">
-		<param name="queue_size" value="10" />
+		<param name="queue_size" value="1" />
 		<param name="approximate_sync" value="true" />
 	</node>
+-->
+
 	<node name="image_proc" pkg="image_proc" type="image_proc" ns="camera2/usb_cam_target">
-		<param name="queue_size" value="10" />
+		<param name="queue_size" value="1" />
 		<param name="approximate_sync" value="true" />
 	</node>
+
 </launch>
 
 

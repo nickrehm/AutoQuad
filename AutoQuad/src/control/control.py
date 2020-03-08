@@ -61,14 +61,15 @@ def RC_feedback(data):
 	
 def target_pose_feedback(data):
 	global target_orientation, target_x, target_y, target_z
-	target_x = data.pose.position.x
-	target_y = data.pose.position.y
+	target_y = data.pose.position.x
+	target_x = data.pose.position.y
 	target_z = data.pose.position.z
 	q0 = data.pose.orientation.w
 	q1 = data.pose.orientation.x
 	q2 = data.pose.orientation.y
 	q3 = data.pose.orientation.z
-	n, n, target_orientation = quaternion_to_euler(q0, q1, q2, q3)
+	pitch, roll, yaw = quaternion_to_euler(q0, q1, q2, q3)
+	target_orientation = yaw*180.0/3.14159
 	
 def target_detected_feedback(data):
 	global target_detected
@@ -108,7 +109,7 @@ def controlAlt_odom(Kp,Ki,Kd,K,hov_pwm):
 	if(radio_command == 1): #reset integral when entering alt hold 
 		integral = 0.0
 	integral_alt_prev = integral
-	B_der = 0.04
+	B_der = 0.25
 	dz = altitude - altitude_prev
 	derivative_alt = (1.0 - B_der)*derivative_alt + B_der*dz
 	altitude_prev = altitude
@@ -122,21 +123,23 @@ def controlAlt_odom(Kp,Ki,Kd,K,hov_pwm):
 	
 def controlVelocity_odom(Kp,Ki,K):
 	global Vx_des, Vy_des, Vx, Vy, roll_pwm, pitch_pwm, integral_x, integral_y
-	# P controller for velocity, setpoint in m/s
+	# PI controller for velocity, setpoint in m/s
 	error_limit = 0.8 #m/s
 	i_limit = 250 #pwm
 	
+	# x-direction
 	error = Vx_des - Vx
 	error = constrain(error, -error_limit, error_limit)
 	integral_x = integral_x + error
-	if(radio_command == 1): #reset integral when entering alt hold 
+	if(radio_command == 1): #reset integral when entering autonomy 
 		integral_x = 0.0
 	PIDx = K*Kp*error + constrain(K*Ki*integral_x, -i_limit, i_limit)
 	
+	# y-direction
 	error = Vy_des - Vy
 	error = constrain(error, -error_limit, error_limit)
 	integral_y = integral_y + error
-	if(radio_command == 1): #reset integral when entering alt hold 
+	if(radio_command == 1): #reset integral when entering autonomy
 		integral_y = 0.0
 	PIDy = K*Kp*error + constrain(K*Ki*integral_y, -i_limit, i_limit)
 	
@@ -148,8 +151,88 @@ def controlVelocity_odom(Kp,Ki,K):
 	pitch_pwm = constrain(pitch_pwm, 1000.0, 2000.0)
 	pitch_pwm = int(pitch_pwm)
 	
-def control_target():
-	indent = 1
+def controlAlt_target(Kp,Ki,Kd,K,hov_pwm):
+	global dt
+	global alt_des, target_z, integral_alt_prev, thro_pwm
+	global altitude_prev
+	global derivative_alt
+	# PI controller for altitude, setpoint in meters
+	error_limit = 0.3 #meters
+	i_limit = 5.0 #arbitrary units
+
+	error = alt_des - target_z
+	error = constrain(error, -error_limit, error_limit)
+	integral = integral_alt_prev + error*dt
+	integral = constrain(integral, -i_limit, i_limit) #prevent windup
+	if(radio_command == 1): #reset integral when entering alt hold 
+		integral = 0.0
+	integral_alt_prev = integral
+	B_der = 0.2
+	dz = target_z - altitude_prev
+	derivative_alt = (1.0 - B_der)*derivative_alt + B_der*dz
+	altitude_prev = target_z
+	PID = K*(Kp*error**3 + Ki*integral - Kd*derivative_alt)
+	
+	altitude_prev = target_z
+	
+	# Convert command to int between 1000 and 2000
+	thro_pwm = hov_pwm + PID
+	thro_pwm = constrain(thro_pwm, hov_pwm - 125.0, hov_pwm + 125.0)
+	thro_pwm = int(thro_pwm)
+	
+def controlPos_target(Kp,Ki,Kd,K,x_offset,y_offset):
+	global dt
+	global target_x, target_y, Vx, Vy, roll_pwm, pitch_pwm, integral_tx, integral_ty
+	global roll_pwm, pitch_pwm
+	# PID controller for position, setpoint x = 0.0m, y = 0.0m (plus offset)
+	error_limit = 0.2 #meters
+	i_limit = 100 #pwm
+	
+	# x-direction
+	error = x_offset - target_x #check sign
+	error = constrain(error, -error_limit, error_limit)
+	integral_tx = integral_tx + error
+	if(radio_command == 1): #reset integral when entering autonomy
+		integral_tx = 0.0
+	derivative = Vx
+	PIDx = K*Kp*error + constrain(K*Ki*integral_tx, -i_limit, i_limit) - K*Kd*derivative
+	
+	# y-direction
+	error = y_offset - target_y #check sign
+	error = constrain(error, -error_limit, error_limit)
+	integral_ty = integral_ty + error
+	if(radio_command == 1): #reset integral when entering autonomy
+		integral_ty = 0.0
+	derivative = Vy
+	PIDy = K*Kp*error + constrain(K*Ki*integral_y, -i_limit, i_limit) - K*Kd*derivative
+	
+	# Convert command to int between 1000 and 2000
+	roll_pwm = 1500.0 - PIDy #check sign
+	roll_pwm = constrain(roll_pwm, 1000.0, 2000.0)
+	roll_pwm = int(roll_pwm)
+	pitch_pwm = 1500.0 + PIDx #check sign
+	pitch_pwm = constrain(pitch_pwm, 1000.0, 2000.0)
+	pitch_pwm = int(pitch_pwm)
+	
+def controlYaw(Kp,Ki,K):
+	global dt
+	global target_orientation, integral_yaw
+	global yaw_pwm
+	# PI controller for orientation, setpoint in degrees (forced to 0.0)
+	error_limit = 20.0 #degrees
+	i_limit = 100 #pwm
+	
+	error = -target_orientation
+	error = constrain(error, -error_limit, error_limit)
+	integral_yaw = integral_yaw + error
+	if(radio_command == 1): #reset integral when entering autonomy
+		integral_tx = 0.0
+	PID = K*Kp*error + constrain(K*Ki*integral_yaw, -i_limit, i_limit)
+	
+	# Convert command to int between 1000 and 2000
+	yaw_pwm = 1500.0 - PID #check sign
+	yaw_pwm = constrain(yaw_pwm, 1000.0, 2000.0)
+	yaw_pwm = int(yaw_pwm)
 	
 
 #############
@@ -165,25 +248,28 @@ def main():
 	global integral_alt_prev, altitude_prev
 	global derivative_alt
 	global integral_x, integral_y
+	global integral_tx, integral_ty
 	global radio_command
 	global dt
 	global target_orientation, target_x, target_y, target_z, target_detected 
+	global integral_yaw
 	thro_pwm = 1000
 	roll_pwm = pitch_pwm = yaw_pwm = 1500
-	alt_des = Vx_des = Vy_des = yaw_des = 0
-	integral_alt_prev = derivative_alt = altitude = altitude_prev = 0
-	Vx = Vy = 0
-	integral_x = integral_y = 0
-	Az_IMU = 0
+	alt_des = Vx_des = Vy_des = yaw_des = 0.0
+	integral_alt_prev = derivative_alt = altitude = altitude_prev = 0.0
+	Vx = Vy = 0.0
+	integral_x = integral_y = 0.0
+	integral_tx = integral_ty = 0.0
+	integral_yaw = 0.0
+	Az_IMU = 0.0
 	radio_command = 1
 	target_detected = 0
-	
 	alt_des = 1.0
 	
 	# Initialize node
 	rospy.init_node('control', anonymous=True)
-	rate = rospy.Rate(100) # Hz
-	dt = 1.0/100.0
+	rate = rospy.Rate(50) # Hz
+	dt = 1.0/50.0
 	
 	# Initialize topics to publish
 	pub_thro = rospy.Publisher('/control/thro_pwm', Int32, queue_size=1)
@@ -209,13 +295,16 @@ def main():
 	while not rospy.is_shutdown():
 		try:		
 			# Do stuff 
+			alt_des = 1.0
+			
 			if(target_detected == 1):
-				control_target()
-				print("Target detected")
+				controlAlt_target(Kp = 0.12, Ki = 0.015, Kd = 2.0, K = 1000.0, hov_pwm = 1400.0)
+				controlPos_target(Kp = 0.1, Ki = 0.0, Kd = 0.02, K = 1000.0, x_offset = 0.0 , y_offset = 0.0)
+				controlYaw(Kp = 0.1, Ki = 0.0003, K = 10.0)
 			else:
-				controlAlt_odom(Kp = 0.18, Ki = 0.02, Kd = 4.5, K = 1000.0, hov_pwm = 1470.0) #kp=.12 ki=0.016 kd=4.0 safe values
-				controlVelocity_odom(Kp = 0.17, Ki = 0.003, K = 1000.0)
-				print("No target detected, hovering in place at 1m")
+				controlAlt_odom(Kp = 0.12, Ki = .015, Kd = 2.0, K = 1000.0, hov_pwm = 1400.0) #kp=.12 ki=0.016 kd=4.0 old values
+				controlVelocity_odom(Kp = 0.1, Ki = 0.001, K = 1000.0)
+				yaw_pwm = 1500
 
 			# Publish to topics
 			pub_thro.publish(thro_pwm)
