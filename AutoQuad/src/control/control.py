@@ -189,48 +189,52 @@ def controlPos_target(Kp,Ki,Kd,K,x_offset,y_offset):
 	i_limit = 100 #pwm
 	
 	# x-direction
-	error = x_offset - target_x #check sign
+	error = x_offset - target_x 
 	error = constrain(error, -error_limit, error_limit)
 	integral_tx = integral_tx + error
+	integral_tx = constrain(K*Ki*integral_tx, -i_limit, i_limit)/(K*Ki)
 	if(radio_command == 1): #reset integral when entering autonomy
 		integral_tx = 0.0
 	derivative = Vx
 	PIDx = K*Kp*error + constrain(K*Ki*integral_tx, -i_limit, i_limit) - K*Kd*derivative
 	
 	# y-direction
-	error = y_offset - target_y #check sign
+	error = y_offset - target_y 
 	error = constrain(error, -error_limit, error_limit)
 	integral_ty = integral_ty + error
+	integral_ty = constrain(K*Ki*integral_ty, -i_limit, i_limit)/(K*Ki)
 	if(radio_command == 1): #reset integral when entering autonomy
 		integral_ty = 0.0
 	derivative = Vy
 	PIDy = K*Kp*error + constrain(K*Ki*integral_y, -i_limit, i_limit) - K*Kd*derivative
 	
 	# Convert command to int between 1000 and 2000
-	roll_pwm = 1500.0 - PIDy #check sign
+	roll_pwm = 1500.0 - PIDy 
 	roll_pwm = constrain(roll_pwm, 1000.0, 2000.0)
 	roll_pwm = int(roll_pwm)
-	pitch_pwm = 1500.0 + PIDx #check sign
+	pitch_pwm = 1500.0 + PIDx 
 	pitch_pwm = constrain(pitch_pwm, 1000.0, 2000.0)
 	pitch_pwm = int(pitch_pwm)
 	
 def controlYaw(Kp,Ki,K):
 	global dt
 	global target_orientation, integral_yaw
+	global radio_command
 	global yaw_pwm
 	# PI controller for orientation, setpoint in degrees (forced to 0.0)
 	error_limit = 20.0 #degrees
-	i_limit = 100 #pwm
+	i_limit = 30 #pwm
 	
 	error = -target_orientation
 	error = constrain(error, -error_limit, error_limit)
 	integral_yaw = integral_yaw + error
+	integral_yaw = constrain(K*Ki*integral_yaw, -i_limit, i_limit)/(K*Ki)
 	if(radio_command == 1): #reset integral when entering autonomy
 		integral_tx = 0.0
 	PID = K*Kp*error + constrain(K*Ki*integral_yaw, -i_limit, i_limit)
 	
 	# Convert command to int between 1000 and 2000
-	yaw_pwm = 1500.0 - PID #check sign
+	yaw_pwm = 1500.0 + PID
 	yaw_pwm = constrain(yaw_pwm, 1000.0, 2000.0)
 	yaw_pwm = int(yaw_pwm)
 	
@@ -299,13 +303,13 @@ def main():
 			
 			if(target_detected == 1):
 				controlAlt_target(Kp = 0.12, Ki = 0.015, Kd = 2.0, K = 1000.0, hov_pwm = 1400.0)
-				controlPos_target(Kp = 0.1, Ki = 0.0, Kd = 0.02, K = 1000.0, x_offset = 0.0 , y_offset = 0.0)
+				controlPos_target(Kp = 0.1, Ki = 0.0, Kd = 0.05, K = 1000.0, x_offset = 0.0 , y_offset = 0.0)
 				controlYaw(Kp = 0.1, Ki = 0.0003, K = 10.0)
 			else:
 				controlAlt_odom(Kp = 0.12, Ki = .015, Kd = 2.0, K = 1000.0, hov_pwm = 1400.0) #kp=.12 ki=0.016 kd=4.0 old values
 				controlVelocity_odom(Kp = 0.1, Ki = 0.001, K = 1000.0)
 				yaw_pwm = 1500
-
+		
 			# Publish to topics
 			pub_thro.publish(thro_pwm)
 			pub_roll.publish(roll_pwm)
