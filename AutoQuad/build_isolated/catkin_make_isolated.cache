@@ -1,0 +1,2 @@
+
+-G Unix Makefiles -DCATKIN_DEVEL_PREFIX=/home/ubuntu/catkin_ws/src/AutoQuad/devel_isolated -DCMAKE_INSTALL_PREFIX=/home/ubuntu/catkin_ws/src/AutoQuad/install_isolated

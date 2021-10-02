@@ -22,6 +22,10 @@ from tf.transformations import quaternion_matrix
 # Functions #
 #############
 
+def tfmini_feedback(data):
+	global altitude_tfmini
+	altitude_tfmini = data.data
+
 def alt_des_feedback(data):
 	global alt_des
 	alt_des = data.data
@@ -58,16 +62,16 @@ def odom_pose_feedback(data):
 	
 	#matrix = quaternion_matrix([q1, q2, q3, q0])
 	#v = numpy.dot(numpy.transpose([x, y, z, 0.0]),matrix) #converts to body frame
-	Xpos = -x #v[0]
-	Ypos = -y #v[1]
+	Xpos = x*1.33 #v[0]
+	Ypos = y*1.33 #v[1]
 	alt = z #-v[2]
 	
 	pitch, roll, yaw = quaternion_to_euler(q0, q1, q2, q3)
 	yaw_angle = yaw*180.0/3.14159
-	if yaw_angle < 0:
-		yaw_angle = yaw_angle+180.0
-	else:
-		yaw_angle = yaw_angle-180.0
+	#if yaw_angle < 0:
+	#	yaw_angle = yaw_angle+180.0
+	#else:
+	#	yaw_angle = yaw_angle-180.0
 	
 	
 def constrain(val, min_val, max_val):
@@ -108,9 +112,41 @@ def controlAlt(Kp,Ki,Kd,K,hov_pwm):
 	#dz = alt - altitude_prev
 	#derivative_alt = (1.0 - B_der)*derivative_alt + B_der*dz #LP filter derivative signal
 	altitude_prev = alt
-	PID = K*(Kp*error + Ki*integral - Kd*dalt)
+	PID = K*(Kp*error + Ki*integral + Kd*dalt)
 	
 	altitude_prev = alt
+	
+	# Convert command to int between 1000 and 2000
+	thro_pwm = hov_pwm + PID
+	thro_pwm = constrain(thro_pwm, hov_pwm - 200.0, hov_pwm + 200.0)
+	thro_pwm = int(thro_pwm)
+	
+def controlAlt_tfmini(Kp,Ki,Kd,K,hov_pwm):
+	global dt
+	global altitude_tfmini, altitude_tfmini_prev
+	global alt_des, alt, dalt, integral_alt_prev, thro_pwm
+	global altitude_prev
+	global derivative_alt
+	# PID controller for altitude, setpoint in meters
+	error_limit = 0.3 #meters
+	i_limit = 5.0 #arbitrary units
+	B = 0.35
+	
+	#filter tfmini altitude estimate
+	dz = (altitude_tfmini - altitude_tfmini_prev)
+	altitude_tfmini = (1.0 - B)*altitude_tfmini_prev + B*altitude_tfmini
+	altitude_tfmini_prev = altitude_tfmini
+
+	error = alt_des - altitude_tfmini
+	error = constrain(error, -error_limit, error_limit)
+	integral = integral_alt_prev + error*dt
+	integral = constrain(integral, -i_limit, i_limit) #prevent windup
+	if(radio_command == 1): #reset integral when entering alt hold 
+		integral = 0.0
+	integral_alt_prev = integral
+	PID = K*(Kp*error + Ki*integral - Kd*dz)
+	
+	#altitude_prev = alt
 	
 	# Convert command to int between 1000 and 2000
 	thro_pwm = hov_pwm + PID
@@ -121,11 +157,11 @@ def controlXY(Kp,Ki,Kd,K,x_offset,y_offset):
 	global dt
 	global Xpos_des, Ypos_des, Xpos, Ypos, dx, dy, roll_pwm, pitch_pwm, integral_x, integral_y
 	global roll_pwm, pitch_pwm
-	global ex_prev, ey_prev
+	global ex_prev, ey_prev, derivative_x, derivative_x_prev, derivative_y, derivative_y_prev
 	# PID controller for position
-	error_limit = 0.3 #meters
+	error_limit = 0.6 #meters
 	i_limit = 50 #pwm
-	B = 0.1
+	B = 0.2
 	
 	# x-direction
 	error = x_offset + Xpos - Xpos_des 
@@ -136,12 +172,13 @@ def controlXY(Kp,Ki,Kd,K,x_offset,y_offset):
 		integral_x = constrain(K*Ki*integral_x, -i_limit, i_limit)/(K*Ki)
 	if(radio_command == 1): #reset integral when entering autonomy
 		integral_x = 0.0
-	derivative = dx
-	PIDx = K*Kp*error + constrain(K*Ki*integral_x, -i_limit, i_limit) - K*Kd*derivative
+	derivative_x = (1.0 - B)*derivative_x_prev + B*dx
+	derivative_x_prev = derivative_x
+	PIDx = K*Kp*error + constrain(K*Ki*integral_x, -i_limit, i_limit) + K*Kd*derivative_x
 	ex_prev = error
 	
 	# y-direction
-	error = y_offset + Ypos - Xpos_des 
+	error = y_offset + Ypos - Ypos_des 
 	#error = (1.0 - B)*ey_prev + B*error
 	error = constrain(error, -error_limit, error_limit)
 	integral_y = integral_y + error
@@ -149,15 +186,16 @@ def controlXY(Kp,Ki,Kd,K,x_offset,y_offset):
 		integral_y = constrain(K*Ki*integral_y, -i_limit, i_limit)/(K*Ki)
 	if(radio_command == 1): #reset integral when entering autonomy
 		integral_y = 0.0
-	derivative = dy
-	PIDy = K*Kp*error + constrain(K*Ki*integral_y, -i_limit, i_limit) - K*Kd*derivative
+	derivative_y = (1.0 - B)*derivative_y_prev + B*dy
+	derivative_y_prev = derivative_y
+	PIDy = K*Kp*error + constrain(K*Ki*integral_y, -i_limit, i_limit) - K*Kd*derivative_y
 	ey_prev = error
 	
 	# Convert command to int between 1000 and 2000
-	roll_pwm = 1500.0 - PIDy 
+	roll_pwm = 1500.0 + PIDy 
 	roll_pwm = constrain(roll_pwm, 1000.0, 2000.0)
 	roll_pwm = int(roll_pwm)
-	pitch_pwm = 1500.0 + PIDx
+	pitch_pwm = 1500.0 - PIDx
 	pitch_pwm = constrain(pitch_pwm, 1000.0, 2000.0)
 	pitch_pwm = int(pitch_pwm)
 
@@ -170,8 +208,9 @@ def controlYaw(Kp,Ki,K):
 	# PI controller for orientation, setpoint in degrees (forced to 0.0)
 	error_limit = 20.0 #degrees
 	i_limit = 30 #pwm
+
 	
-	error = yaw_des - yaw_angle
+	error = (yaw_des - yaw_angle)
 	error = constrain(error, -error_limit, error_limit)
 	integral_yaw = integral_yaw + error
 	integral_yaw = constrain(K*Ki*integral_yaw, -i_limit, i_limit)/(K*Ki)
@@ -203,6 +242,10 @@ def main():
 	global dt
 	global integral_yaw
 	global ex_prev, ey_prev
+	global altitude_tfmini, altitude_tfmini_prev
+	global derivative_x, derivative_x_prev, derivative_y, derivative_y_prev
+	derivative_x = derivative_x_prev = derivative_y = derivative_y_prev = 0.0
+	altitude_tfmini = altitude_tfmini_prev = 0.0
 	thro_pwm = 1000
 	roll_pwm = pitch_pwm = yaw_pwm = 1500
 	radio_command = 1
@@ -234,7 +277,7 @@ def main():
 	rospy.Subscriber('/control/Ypos_des', Float64, Ypos_des_feedback) 
 	rospy.Subscriber('/control/yaw_des', Float64, yaw_des_feedback)
 	rospy.Subscriber('/radio_command', Int32, RC_feedback)
-
+	rospy.Subscriber('/tfmini/altitude', Float64, tfmini_feedback)
 	
 	
 	
@@ -244,12 +287,15 @@ def main():
 			
 			#IMPORTANT VARIABLES: yaw_angle, Xpos, Ypos, alt, alt_des, Xpos_des, Ypos_des, yaw_des, dx, dy, dalt
 			yaw_des = 0.0; #do not change!!!
-			alt_des = 1.0; #set constant for runs
+			alt_des = 0.5; #set constant for runs
 			
 			
-			controlAlt(Kp = 0.12, Ki = 0.015, Kd = 0.1, K = 1000.0, hov_pwm = 1400.0) 
-			controlXY(Kp = 0.15, Ki = 0.005, Kd = 0.12, K = 1000.0, x_offset = 0.0 , y_offset = 0.0)
-			controlYaw(Kp = 0.15, Ki = 0.0003, K = 10.0)
+			controlAlt(Kp = 0.15, Ki = 0.1, Kd = 0.3, K = 1000.0, hov_pwm = 1440.0) #controls altitude from t265 z estimate
+			#controlAlt_tfmini(Kp = 0.15, Ki = .1, Kd = 2.1, K = 1000.0, hov_pwm = 1450.0) 
+			controlXY(Kp = 0.28, Ki = 0.003, Kd = 0.4, K = 1000.0, x_offset = 0.0 , y_offset = 0.0) #kd = 0.12
+			controlYaw(Kp = 0.2, Ki = 0.0002, K = 10.0)
+			
+			#print(Xpos,Ypos)
 			
 			
 			# Publish to topics

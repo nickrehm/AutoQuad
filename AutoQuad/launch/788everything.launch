@@ -1,8 +1,13 @@
 <launch>
 	<node pkg="AutoQuad" type="serialComm.py" name="serialComm" output="screen"/>
 	<node pkg="AutoQuad" type="position_control.py" name="control" output="screen"/>
+	<node pkg="AutoQuad" type="tfmini.py" name="tfmini" output="screen"/>
+	<node pkg="AutoQuad" type="planner.py" name="planner" output="screen"/>
 	
+	
+	
+	<node pkg="AutoQuad" type="Dstar" name="Dstar" output="screen"/>
 	<!--
-	<node pkg="AutoQuad" type="target_planner.py" name="target_planner" output="screen"/>
+	
 	-->
 </launch>

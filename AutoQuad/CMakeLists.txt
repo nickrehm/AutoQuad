@@ -114,6 +114,11 @@ catkin_package(
 ###########
 ## Build ##
 ###########
+add_executable(Dstar src/DstarLite/Dstar.cpp)
+target_link_libraries(Dstar ${catkin_LIBRARIES})
+add_dependencies(Dstar beginner_tutorials_generate_messages_cpp)
+#target_link_libraries(Dstar ${catkin_LIBRARIES})
+set_target_properties(Dstar PROPERTIES LINKER_LANGUAGE CXX)
 
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
